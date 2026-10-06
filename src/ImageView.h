@@ -1,7 +1,8 @@
 #pragma once
 
+#include "Format.h"
+
 #include <cstdint>
-#include <dxgiformat.h>
 
 struct ImageView
 {
@@ -9,10 +10,10 @@ struct ImageView
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t rowPitch = 0;
-    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+    Format format = Format::UNKNOWN;
 };
 
-inline bool IsR8G8B8A8(DXGI_FORMAT format)
+inline bool IsR8G8B8A8(Format format)
 {
-    return format == DXGI_FORMAT_R8G8B8A8_UNORM || format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    return format == Format::R8G8B8A8_UNORM || format == Format::R8G8B8A8_UNORM_SRGB;
 }

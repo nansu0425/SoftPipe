@@ -6,6 +6,7 @@ add_executable(SoftPipe WIN32
     src/Capture.h
     src/Diagnostics.cpp
     src/Diagnostics.h
+    src/Format.h
     src/FrameTiming.cpp
     src/FrameTiming.h
     src/ImageView.h

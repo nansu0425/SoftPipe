@@ -41,7 +41,7 @@ namespace
         view.width = kRenderWidth;
         view.height = kRenderHeight;
         view.rowPitch = kRenderWidth * sizeof(uint32_t);
-        view.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        view.format = Format::R8G8B8A8_UNORM;
         return view;
     }
 
