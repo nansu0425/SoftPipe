@@ -4,6 +4,8 @@ project(SoftPipe LANGUAGES CXX)
 add_executable(SoftPipe WIN32
     src/Diagnostics.cpp
     src/Diagnostics.h
+    src/FrameTiming.cpp
+    src/FrameTiming.h
     src/Main.cpp
     src/SoftPipe.manifest
 )
