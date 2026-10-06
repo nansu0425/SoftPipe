@@ -12,4 +12,11 @@ set_target_properties(SoftPipe PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_definitions(SoftPipe PRIVATE UNICODE _UNICODE)
 target_compile_options(SoftPipe PRIVATE /W4 /permissive- /sdl /utf-8)
 
+target_include_directories(SoftPipe SYSTEM PRIVATE third_party)
+
+set_target_properties(SoftPipe PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT SoftPipe)

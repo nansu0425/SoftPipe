@@ -32,9 +32,9 @@ D3D12 의 rasterization·shader stage 동작은 D3D11.3 Functional Specification
 
 ### M0 [B] 빌드 세팅
 
-- [ ] `RelWithDebInfo` build preset 추가. 일상 실행은 이 preset 으로 한다
-- [ ] 외부 header 는 `third_party/` 에 vendoring 하고 `/external:I` + `/external:W0` 로 연결
-- [ ] `assets/` 경로(git 제외)와 `VS_DEBUGGER_WORKING_DIRECTORY`
+- [x] `RelWithDebInfo` build preset 추가. 일상 실행은 이 preset 으로 한다
+- [x] 외부 header 는 `third_party/` 에 vendoring 하고 `/external:I` + `/external:W0` 로 연결
+- [x] `assets/` 경로(git 제외)와 `VS_DEBUGGER_WORKING_DIRECTORY`
 - [ ] assert·log(`OutputDebugStringW`) header
 
 완료 기준: 세 configuration 모두 warning 0 으로 빌드된다.

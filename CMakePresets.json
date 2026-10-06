@@ -18,6 +18,12 @@
       "nativeToolOptions": [ "/nologo", "/v:minimal" ]
     },
     {
+      "name": "relwithdebinfo",
+      "configurePreset": "default",
+      "configuration": "RelWithDebInfo",
+      "nativeToolOptions": [ "/nologo", "/v:minimal" ]
+    },
+    {
       "name": "release",
       "configurePreset": "default",
       "configuration": "Release",

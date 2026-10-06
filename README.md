@@ -20,7 +20,20 @@
 
 ## 빌드
 
-Visual Studio 에서는 저장소 폴더를 열면(File → Open → Folder) `CMakePresets.json` 을 읽어 configure 한다. configure preset `default`, build preset `debug`/`release` 를 고른다.
+Visual Studio 에서는 저장소 폴더를 열면(File → Open → Folder) `CMakePresets.json` 을 읽어 configure 한다. configure preset `default`, build preset `debug`/`relwithdebinfo`/`release` 를 고른다.
+
+| build preset | 용도 |
+|---|---|
+| `debug` | 최적화 없이 단계별 debugging |
+| `relwithdebinfo` | 일상 실행. 최적화와 PDB 를 함께 쓴다 |
+| `release` | 성능 측정 |
+
+명령줄: `cmake --preset default` 로 configure 한 뒤 `cmake --build --preset <build preset>`.
+
+## 실행
+
+- 프로그램은 저장소 root 를 working directory 로 가정하고 상대 경로로 파일을 연다. Visual Studio debugger 실행은 working directory 가 저장소 root 로 설정되어 있다. 명령줄에서 실행할 때는 저장소 root 에서 실행한다.
+- glTF 등 asset 은 저장소 root 의 `assets/` 에 둔다. git 에서 제외된다.
 
 ## 진행
 
