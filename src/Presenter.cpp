@@ -11,6 +11,11 @@ namespace
         return (rgba & 0xFF00FF00u) | ((rgba & 0x000000FFu) << 16) | ((rgba >> 16) & 0x000000FFu);
     }
 
+    int64_t RoundedDivide(int64_t numerator, int64_t denominator)
+    {
+        return (numerator + denominator / 2) / denominator;
+    }
+
     void FillBlack(HDC dc, int left, int top, int width, int height)
     {
         if (width > 0 && height > 0)
@@ -37,13 +42,14 @@ RECT ComputeLetterboxRect(int clientWidth, int clientHeight, uint32_t imageWidth
 
     int64_t width = cw;
     int64_t height = ch;
-    if (cw * ih <= ch * iw)
+    const bool isWidthLimiting = cw * ih <= ch * iw; // cw / iw <= ch / ih
+    if (isWidthLimiting)
     {
-        height = (cw * ih + iw / 2) / iw;
+        height = RoundedDivide(cw * ih, iw);
     }
     else
     {
-        width = (ch * iw + ih / 2) / ih;
+        width = RoundedDivide(ch * iw, ih);
     }
 
     const int64_t left = (cw - width) / 2;
