@@ -1,3 +1,5 @@
+#include "Diagnostics.h"
+
 #include <windows.h>
 
 namespace
@@ -32,6 +34,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _I
 
     if (!RegisterClassExW(&wc))
     {
+        Log(L"RegisterClassExW failed: {}", GetLastError());
         return 1;
     }
 
@@ -55,6 +58,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _I
 
     if (!hwnd)
     {
+        Log(L"CreateWindowExW failed: {}", GetLastError());
         return 1;
     }
 
