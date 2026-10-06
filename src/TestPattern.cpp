@@ -28,8 +28,8 @@ namespace
     class PixelWriter
     {
     public:
-        PixelWriter(void* pixels, uint32_t width, uint32_t height, uint32_t rowPitch)
-            : m_pixels(static_cast<uint8_t*>(pixels)), m_width(width), m_height(height), m_rowPitch(rowPitch)
+        PixelWriter(uint32_t* pixels, uint32_t width, uint32_t height)
+            : m_pixels(pixels), m_width(width), m_height(height)
         {
         }
 
@@ -38,7 +38,7 @@ namespace
 
         uint32_t* Row(uint32_t y) const
         {
-            return reinterpret_cast<uint32_t*>(m_pixels + static_cast<size_t>(y) * m_rowPitch);
+            return m_pixels + static_cast<size_t>(y) * m_width;
         }
 
         void FillRect(uint32_t left, uint32_t top, uint32_t width, uint32_t height, uint32_t color) const
@@ -52,10 +52,9 @@ namespace
         }
 
     private:
-        uint8_t* m_pixels;
+        uint32_t* m_pixels;
         uint32_t m_width;
         uint32_t m_height;
-        uint32_t m_rowPitch;
     };
 
     void FillGradient(const PixelWriter& writer)
@@ -125,12 +124,11 @@ namespace
     }
 }
 
-void FillTestPatternR8G8B8A8(void* pixels, uint32_t width, uint32_t height, uint32_t rowPitch, double seconds)
+void FillTestPatternR8G8B8A8(uint32_t* pixels, uint32_t width, uint32_t height, double seconds)
 {
     SOFTPIPE_ASSERT(width >= 2 * (kCornerInset + kCornerSize) && height >= 2 * (kCornerInset + kCornerSize));
-    SOFTPIPE_ASSERT(rowPitch >= width * 4);
 
-    const PixelWriter writer(pixels, width, height, rowPitch);
+    const PixelWriter writer(pixels, width, height);
     FillGradient(writer);
     FillChecker(writer);
     FillCorners(writer);

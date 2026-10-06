@@ -74,8 +74,7 @@ namespace
             app.sceneSeconds += app.timer.DeltaSeconds();
         }
 
-        FillTestPatternR8G8B8A8(
-            app.framebuffer.data(), kRenderWidth, kRenderHeight, kRenderWidth * sizeof(uint32_t), app.sceneSeconds);
+        FillTestPatternR8G8B8A8(app.framebuffer.data(), kRenderWidth, kRenderHeight, app.sceneSeconds);
 
         HDC dc = GetDC(app.hwnd);
         PresentFramebuffer(app, dc);
