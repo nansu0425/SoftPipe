@@ -6,8 +6,13 @@ add_executable(SoftPipe WIN32
     src/Diagnostics.h
     src/FrameTiming.cpp
     src/FrameTiming.h
+    src/ImageView.h
     src/Main.cpp
+    src/Presenter.cpp
+    src/Presenter.h
     src/SoftPipe.manifest
+    src/TestPattern.cpp
+    src/TestPattern.h
 )
 
 target_compile_features(SoftPipe PRIVATE cxx_std_20)

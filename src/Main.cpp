@@ -1,35 +1,80 @@
 #include "Diagnostics.h"
 #include "FrameTiming.h"
+#include "ImageView.h"
+#include "Presenter.h"
+#include "TestPattern.h"
 
+#include <cstdint>
 #include <format>
 #include <string>
+#include <vector>
 #include <windows.h>
 
 namespace
 {
     constexpr wchar_t kWindowClassName[] = L"SoftPipeWindow";
     constexpr wchar_t kWindowTitle[] = L"SoftPipe";
-    constexpr int kClientWidth = 1280;
-    constexpr int kClientHeight = 720;
+    constexpr uint32_t kRenderWidth = 1280;
+    constexpr uint32_t kRenderHeight = 720;
+    constexpr int kInitialClientWidth = static_cast<int>(kRenderWidth);
+    constexpr int kInitialClientHeight = static_cast<int>(kRenderHeight);
     constexpr double kFrameRateWindowSeconds = 0.5;
+    constexpr UINT_PTR kSizeMoveTimerId = 1;
 
     struct App
     {
         HWND hwnd = nullptr;
         FrameTimer timer;
         FrameRateCounter frameRate{ kFrameRateWindowSeconds };
+        std::vector<uint32_t> framebuffer = std::vector<uint32_t>(static_cast<size_t>(kRenderWidth) * kRenderHeight);
+        Presenter presenter;
     };
 
-    void RunFrame(App& app)
+    ImageView GetFramebufferView(const App& app)
     {
-        app.timer.Tick();
+        ImageView view;
+        view.pixels = app.framebuffer.data();
+        view.width = kRenderWidth;
+        view.height = kRenderHeight;
+        view.rowPitch = kRenderWidth * sizeof(uint32_t);
+        view.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        return view;
+    }
 
+    void PresentFramebuffer(App& app, HDC dc)
+    {
+        RECT client;
+        GetClientRect(app.hwnd, &client);
+        app.presenter.Present(dc, client.right - client.left, client.bottom - client.top, GetFramebufferView(app));
+    }
+
+    void UpdateTitle(App& app)
+    {
         if (std::optional<FrameRate> rate = app.frameRate.AddFrame(app.timer.DeltaSeconds()))
         {
             std::wstring title = std::format(
                 L"{} | {:.0f} fps | {:.2f} ms", kWindowTitle, rate->framesPerSecond, rate->millisecondsPerFrame);
             SetWindowTextW(app.hwnd, title.c_str());
         }
+    }
+
+    void RunFrame(App& app)
+    {
+        app.timer.Tick();
+
+        FillTestPatternR8G8B8A8(
+            app.framebuffer.data(), kRenderWidth, kRenderHeight, kRenderWidth * sizeof(uint32_t), app.timer.TotalSeconds());
+
+        HDC dc = GetDC(app.hwnd);
+        PresentFramebuffer(app, dc);
+        ReleaseDC(app.hwnd, dc);
+
+        UpdateTitle(app);
+    }
+
+    App* GetApp(HWND hwnd)
+    {
+        return reinterpret_cast<App*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     }
 
     LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -41,8 +86,43 @@ namespace
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
         }
 
+        App* app = GetApp(hwnd);
+        if (!app)
+        {
+            return DefWindowProcW(hwnd, msg, wParam, lParam);
+        }
+
         switch (msg)
         {
+        case WM_ERASEBKGND:
+            return 1;
+
+        case WM_PAINT:
+        {
+            PAINTSTRUCT ps;
+            HDC dc = BeginPaint(hwnd, &ps);
+            PresentFramebuffer(*app, dc);
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+
+        // 창 테두리를 끄는 동안 DefWindowProcW 가 자체 modal loop 를 돌아 RunMessageLoop 가 멈춘다.
+        case WM_ENTERSIZEMOVE:
+            SetTimer(hwnd, kSizeMoveTimerId, USER_TIMER_MINIMUM, nullptr);
+            return 0;
+
+        case WM_EXITSIZEMOVE:
+            KillTimer(hwnd, kSizeMoveTimerId);
+            return 0;
+
+        case WM_TIMER:
+            if (wParam == kSizeMoveTimerId)
+            {
+                RunFrame(*app);
+                return 0;
+            }
+            break;
+
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
@@ -84,7 +164,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _I
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     wc.lpszClassName = kWindowClassName;
 
     if (!RegisterClassExW(&wc))
@@ -94,7 +173,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _I
     }
 
     constexpr DWORD style = WS_OVERLAPPEDWINDOW;
-    RECT rect = { 0, 0, kClientWidth, kClientHeight };
+    RECT rect = { 0, 0, kInitialClientWidth, kInitialClientHeight };
     AdjustWindowRectEx(&rect, style, FALSE, 0);
 
     App app;
