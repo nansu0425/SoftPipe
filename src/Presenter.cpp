@@ -42,7 +42,7 @@ RECT ComputeLetterboxRect(int clientWidth, int clientHeight, uint32_t imageWidth
 
     int64_t width = cw;
     int64_t height = ch;
-    const bool isWidthLimiting = cw * ih <= ch * iw; // cw / iw <= ch / ih
+    const bool isWidthLimiting = cw * ih <= ch * iw;
     if (isWidthLimiting)
     {
         height = RoundedDivide(cw * ih, iw);
