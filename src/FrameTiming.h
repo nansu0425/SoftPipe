@@ -10,13 +10,11 @@ public:
 
     void Tick();
     double DeltaSeconds() const;
-    double TotalSeconds() const;
 
 private:
     double ToSeconds(int64_t ticks) const;
 
     int64_t m_frequency = 0;
-    int64_t m_start = 0;
     int64_t m_previous = 0;
     int64_t m_current = 0;
 };

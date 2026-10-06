@@ -1,3 +1,4 @@
+#include "Capture.h"
 #include "Diagnostics.h"
 #include "FrameTiming.h"
 #include "ImageView.h"
@@ -28,6 +29,9 @@ namespace
         FrameRateCounter frameRate{ kFrameRateWindowSeconds };
         std::vector<uint32_t> framebuffer = std::vector<uint32_t>(static_cast<size_t>(kRenderWidth) * kRenderHeight);
         Presenter presenter;
+        double sceneSeconds = 0.0;
+        bool paused = false;
+        bool captureRequested = false;
     };
 
     ImageView GetFramebufferView(const App& app)
@@ -54,6 +58,10 @@ namespace
         {
             std::wstring title = std::format(
                 L"{} | {:.0f} fps | {:.2f} ms", kWindowTitle, rate->framesPerSecond, rate->millisecondsPerFrame);
+            if (app.paused)
+            {
+                title += L" | paused";
+            }
             SetWindowTextW(app.hwnd, title.c_str());
         }
     }
@@ -61,13 +69,23 @@ namespace
     void RunFrame(App& app)
     {
         app.timer.Tick();
+        if (!app.paused)
+        {
+            app.sceneSeconds += app.timer.DeltaSeconds();
+        }
 
         FillTestPatternR8G8B8A8(
-            app.framebuffer.data(), kRenderWidth, kRenderHeight, kRenderWidth * sizeof(uint32_t), app.timer.TotalSeconds());
+            app.framebuffer.data(), kRenderWidth, kRenderHeight, kRenderWidth * sizeof(uint32_t), app.sceneSeconds);
 
         HDC dc = GetDC(app.hwnd);
         PresentFramebuffer(app, dc);
         ReleaseDC(app.hwnd, dc);
+
+        if (app.captureRequested)
+        {
+            SaveCapture(GetFramebufferView(app));
+            app.captureRequested = false;
+        }
 
         UpdateTitle(app);
     }
@@ -122,6 +140,26 @@ namespace
                 return 0;
             }
             break;
+
+        case WM_KEYDOWN:
+        {
+            const bool isAutoRepeat = (lParam & (1 << 30)) != 0;
+            if (isAutoRepeat)
+            {
+                break;
+            }
+            if (wParam == VK_F9)
+            {
+                app->captureRequested = true;
+                return 0;
+            }
+            if (wParam == VK_PAUSE)
+            {
+                app->paused = !app->paused;
+                return 0;
+            }
+            break;
+        }
 
         case WM_DESTROY:
             PostQuitMessage(0);

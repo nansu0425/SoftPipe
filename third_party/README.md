@@ -4,3 +4,4 @@
 
 | 파일 | 출처 | version |
 |---|---|---|
+| `stb_image_write.h` | <https://github.com/nothings/stb> | v1.16 (commit `2c980bb59875b0d32144a71867fbdebb2f77cd20`) |

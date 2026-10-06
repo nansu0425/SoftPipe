@@ -17,9 +17,8 @@ FrameTimer::FrameTimer()
     LARGE_INTEGER frequency;
     QueryPerformanceFrequency(&frequency);
     m_frequency = frequency.QuadPart;
-    m_start = QueryCounter();
-    m_previous = m_start;
-    m_current = m_start;
+    m_current = QueryCounter();
+    m_previous = m_current;
 }
 
 void FrameTimer::Tick()
@@ -31,11 +30,6 @@ void FrameTimer::Tick()
 double FrameTimer::DeltaSeconds() const
 {
     return ToSeconds(m_current - m_previous);
-}
-
-double FrameTimer::TotalSeconds() const
-{
-    return ToSeconds(m_current - m_start);
 }
 
 double FrameTimer::ToSeconds(int64_t ticks) const

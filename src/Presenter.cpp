@@ -6,11 +6,6 @@
 
 namespace
 {
-    bool IsR8G8B8A8(DXGI_FORMAT format)
-    {
-        return format == DXGI_FORMAT_R8G8B8A8_UNORM || format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-    }
-
     uint32_t SwapRedBlue(uint32_t rgba)
     {
         return (rgba & 0xFF00FF00u) | ((rgba & 0x000000FFu) << 16) | ((rgba >> 16) & 0x000000FFu);
