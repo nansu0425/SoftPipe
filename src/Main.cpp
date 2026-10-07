@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <format>
+#include <optional>
 #include <string>
 #include <vector>
 #include <windows.h>
@@ -89,80 +90,116 @@ namespace
         UpdateTitle(app);
     }
 
+    constexpr LRESULT kHandled = 0;          // 대부분의 message: 처리했으면 0
+    constexpr LRESULT kBackgroundErased = 1; // WM_ERASEBKGND: 0 이 아니면 배경을 지운 것으로 간주
+
     App* GetApp(HWND hwnd)
     {
         return reinterpret_cast<App*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    }
+
+    void AttachApp(HWND hwnd, LPARAM createStruct)
+    {
+        App* app = static_cast<App*>(reinterpret_cast<CREATESTRUCTW*>(createStruct)->lpCreateParams);
+        app->hwnd = hwnd;
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
+    }
+
+    LRESULT SkipBackgroundErase()
+    {
+        return kBackgroundErased;
+    }
+
+    LRESULT RepaintLastFrame(App& app)
+    {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(app.hwnd, &ps);
+        PresentFramebuffer(app, dc);
+        EndPaint(app.hwnd, &ps);
+        return kHandled;
+    }
+
+    // 창 테두리를 끄는 동안 DefWindowProcW 가 자체 modal loop 를 돌아 RunMessageLoop 가 멈춘다.
+    LRESULT StartFramesDuringSizeMove(App& app)
+    {
+        SetTimer(app.hwnd, kSizeMoveTimerId, USER_TIMER_MINIMUM, nullptr);
+        return kHandled;
+    }
+
+    LRESULT StopFramesDuringSizeMove(App& app)
+    {
+        KillTimer(app.hwnd, kSizeMoveTimerId);
+        return kHandled;
+    }
+
+    std::optional<LRESULT> RunFrameDuringSizeMove(App& app, WPARAM timerId)
+    {
+        if (timerId != kSizeMoveTimerId)
+        {
+            return std::nullopt;
+        }
+        RunFrame(app);
+        return kHandled;
+    }
+
+    bool IsAutoRepeat(LPARAM keyFlags)
+    {
+        return (keyFlags & (1 << 30)) != 0;
+    }
+
+    std::optional<LRESULT> HandleKeyDown(App& app, WPARAM virtualKey, LPARAM keyFlags)
+    {
+        if (IsAutoRepeat(keyFlags))
+        {
+            return std::nullopt;
+        }
+
+        switch (virtualKey)
+        {
+        case VK_F9:
+            app.captureRequested = true;
+            return kHandled;
+        case VK_PAUSE:
+            app.paused = !app.paused;
+            return kHandled;
+        }
+        return std::nullopt;
+    }
+
+    LRESULT QuitMessageLoop()
+    {
+        PostQuitMessage(0);
+        return kHandled;
+    }
+
+    std::optional<LRESULT> HandleMessage(App& app, UINT msg, WPARAM wParam, LPARAM lParam)
+    {
+        switch (msg)
+        {
+        case WM_ERASEBKGND:    return SkipBackgroundErase();
+        case WM_PAINT:         return RepaintLastFrame(app);
+        case WM_ENTERSIZEMOVE: return StartFramesDuringSizeMove(app);
+        case WM_EXITSIZEMOVE:  return StopFramesDuringSizeMove(app);
+        case WM_TIMER:         return RunFrameDuringSizeMove(app, wParam);
+        case WM_KEYDOWN:       return HandleKeyDown(app, wParam, lParam);
+        case WM_DESTROY:       return QuitMessageLoop();
+        }
+        return std::nullopt;
     }
 
     LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         if (msg == WM_NCCREATE)
         {
-            App* app = static_cast<App*>(reinterpret_cast<CREATESTRUCTW*>(lParam)->lpCreateParams);
-            app->hwnd = hwnd;
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
+            AttachApp(hwnd, lParam);
         }
 
-        App* app = GetApp(hwnd);
-        if (!app)
+        if (App* app = GetApp(hwnd))
         {
-            return DefWindowProcW(hwnd, msg, wParam, lParam);
-        }
-
-        switch (msg)
-        {
-        case WM_ERASEBKGND:
-            return 1;
-
-        case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC dc = BeginPaint(hwnd, &ps);
-            PresentFramebuffer(*app, dc);
-            EndPaint(hwnd, &ps);
-            return 0;
-        }
-
-        // 창 테두리를 끄는 동안 DefWindowProcW 가 자체 modal loop 를 돌아 RunMessageLoop 가 멈춘다.
-        case WM_ENTERSIZEMOVE:
-            SetTimer(hwnd, kSizeMoveTimerId, USER_TIMER_MINIMUM, nullptr);
-            return 0;
-
-        case WM_EXITSIZEMOVE:
-            KillTimer(hwnd, kSizeMoveTimerId);
-            return 0;
-
-        case WM_TIMER:
-            if (wParam == kSizeMoveTimerId)
+            if (std::optional<LRESULT> result = HandleMessage(*app, msg, wParam, lParam))
             {
-                RunFrame(*app);
-                return 0;
+                return *result;
             }
-            break;
-
-        case WM_KEYDOWN:
-        {
-            const bool isAutoRepeat = (lParam & (1 << 30)) != 0;
-            if (isAutoRepeat)
-            {
-                break;
-            }
-            if (wParam == VK_F9)
-            {
-                app->captureRequested = true;
-                return 0;
-            }
-            if (wParam == VK_PAUSE)
-            {
-                app->paused = !app->paused;
-                return 0;
-            }
-            break;
-        }
-
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            return 0;
         }
         return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
