@@ -2,10 +2,20 @@ cmake_minimum_required(VERSION 3.25)
 project(SoftPipe LANGUAGES CXX)
 
 add_executable(SoftPipe WIN32
+    src/Capture.cpp
+    src/Capture.h
     src/Diagnostics.cpp
     src/Diagnostics.h
+    src/Format.h
+    src/FrameTiming.cpp
+    src/FrameTiming.h
+    src/ImageView.h
     src/Main.cpp
+    src/Presenter.cpp
+    src/Presenter.h
     src/SoftPipe.manifest
+    src/TestPattern.cpp
+    src/TestPattern.h
 )
 
 target_compile_features(SoftPipe PRIVATE cxx_std_20)

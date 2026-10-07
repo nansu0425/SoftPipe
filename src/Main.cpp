@@ -1,23 +1,239 @@
+#include "Capture.h"
 #include "Diagnostics.h"
+#include "FrameTiming.h"
+#include "ImageView.h"
+#include "Presenter.h"
+#include "TestPattern.h"
 
+#include <cstdint>
+#include <format>
+#include <optional>
+#include <string>
+#include <vector>
 #include <windows.h>
 
 namespace
 {
     constexpr wchar_t kWindowClassName[] = L"SoftPipeWindow";
     constexpr wchar_t kWindowTitle[] = L"SoftPipe";
-    constexpr int kClientWidth = 1280;
-    constexpr int kClientHeight = 720;
+    constexpr uint32_t kRenderWidth = 1280;
+    constexpr uint32_t kRenderHeight = 720;
+    constexpr int kInitialClientWidth = static_cast<int>(kRenderWidth);
+    constexpr int kInitialClientHeight = static_cast<int>(kRenderHeight);
+    constexpr double kFrameRateWindowSeconds = 0.5;
+    constexpr UINT_PTR kSizeMoveTimerId = 1;
 
-    LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+    struct App
+    {
+        HWND hwnd = nullptr;
+        FrameTimer timer;
+        FrameRateCounter frameRate{ kFrameRateWindowSeconds };
+        std::vector<uint32_t> framebuffer = std::vector<uint32_t>(static_cast<size_t>(kRenderWidth) * kRenderHeight);
+        Presenter presenter;
+        double sceneSeconds = 0.0;
+        bool paused = false;
+        bool captureRequested = false;
+    };
+
+    ImageView GetFramebufferView(const App& app)
+    {
+        ImageView view;
+        view.pixels = app.framebuffer.data();
+        view.width = kRenderWidth;
+        view.height = kRenderHeight;
+        view.rowPitch = kRenderWidth * sizeof(uint32_t);
+        view.format = Format::R8G8B8A8_UNORM;
+        return view;
+    }
+
+    void PresentFramebuffer(App& app, HDC dc)
+    {
+        RECT client;
+        GetClientRect(app.hwnd, &client);
+        app.presenter.Present(dc, client.right - client.left, client.bottom - client.top, GetFramebufferView(app));
+    }
+
+    void UpdateTitle(App& app)
+    {
+        if (std::optional<FrameRate> rate = app.frameRate.AddFrame(app.timer.DeltaSeconds()))
+        {
+            std::wstring title = std::format(
+                L"{} | {:.0f} fps | {:.2f} ms", kWindowTitle, rate->framesPerSecond, rate->millisecondsPerFrame);
+            if (app.paused)
+            {
+                title += L" | paused";
+            }
+            SetWindowTextW(app.hwnd, title.c_str());
+        }
+    }
+
+    void RunFrame(App& app)
+    {
+        app.timer.Tick();
+        if (!app.paused)
+        {
+            app.sceneSeconds += app.timer.DeltaSeconds();
+        }
+
+        FillTestPatternR8G8B8A8(app.framebuffer.data(), kRenderWidth, kRenderHeight, app.sceneSeconds);
+
+        HDC dc = GetDC(app.hwnd);
+        PresentFramebuffer(app, dc);
+        ReleaseDC(app.hwnd, dc);
+
+        if (app.captureRequested)
+        {
+            SaveCapture(GetFramebufferView(app));
+            app.captureRequested = false;
+        }
+
+        UpdateTitle(app);
+    }
+
+    constexpr LRESULT kHandled = 0;          // 대부분의 message: 처리했으면 0
+    constexpr LRESULT kBackgroundErased = 1; // WM_ERASEBKGND: 0 이 아니면 배경을 지운 것으로 간주
+
+    App* GetApp(HWND hwnd)
+    {
+        return reinterpret_cast<App*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    }
+
+    void AttachApp(HWND hwnd, LPARAM createStruct)
+    {
+        App* app = static_cast<App*>(reinterpret_cast<CREATESTRUCTW*>(createStruct)->lpCreateParams);
+        app->hwnd = hwnd;
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
+    }
+
+    LRESULT SkipBackgroundErase()
+    {
+        return kBackgroundErased;
+    }
+
+    LRESULT RepaintLastFrame(App& app)
+    {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(app.hwnd, &ps);
+        PresentFramebuffer(app, dc);
+        EndPaint(app.hwnd, &ps);
+        return kHandled;
+    }
+
+    // 창 테두리를 끄는 동안 DefWindowProcW 가 자체 modal loop 를 돌아 RunMessageLoop 가 멈춘다.
+    LRESULT StartFramesDuringSizeMove(App& app)
+    {
+        SetTimer(app.hwnd, kSizeMoveTimerId, USER_TIMER_MINIMUM, nullptr);
+        return kHandled;
+    }
+
+    LRESULT StopFramesDuringSizeMove(App& app)
+    {
+        KillTimer(app.hwnd, kSizeMoveTimerId);
+        return kHandled;
+    }
+
+    std::optional<LRESULT> RunFrameDuringSizeMove(App& app, WPARAM timerId)
+    {
+        if (timerId != kSizeMoveTimerId)
+        {
+            return std::nullopt;
+        }
+        RunFrame(app);
+        return kHandled;
+    }
+
+    bool IsAutoRepeat(LPARAM keyFlags)
+    {
+        return (keyFlags & (1 << 30)) != 0;
+    }
+
+    std::optional<LRESULT> HandleKeyDown(App& app, WPARAM virtualKey, LPARAM keyFlags)
+    {
+        if (IsAutoRepeat(keyFlags))
+        {
+            return std::nullopt;
+        }
+
+        switch (virtualKey)
+        {
+        case VK_F9:
+            app.captureRequested = true;
+            return kHandled;
+        case VK_PAUSE:
+            app.paused = !app.paused;
+            return kHandled;
+        }
+        return std::nullopt;
+    }
+
+    LRESULT QuitMessageLoop()
+    {
+        PostQuitMessage(0);
+        return kHandled;
+    }
+
+    std::optional<LRESULT> HandleMessage(App& app, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         switch (msg)
         {
-        case WM_DESTROY:
-            PostQuitMessage(0);
-            return 0;
+        // 무효화된 영역을 다시 그리기 전, 배경을 지우라고 할 때
+        case WM_ERASEBKGND:    return SkipBackgroundErase();
+        // window 일부가 무효화되어 다시 그려야 할 때 (resize, 가려졌다 드러남 등)
+        case WM_PAINT:         return RepaintLastFrame(app);
+        // 사용자가 창 테두리나 title bar 를 잡아 resize 나 이동을 시작할 때
+        case WM_ENTERSIZEMOVE: return StartFramesDuringSizeMove(app);
+        // resize 나 이동을 마치고 마우스를 놓을 때
+        case WM_EXITSIZEMOVE:  return StopFramesDuringSizeMove(app);
+        // SetTimer 로 건 timer 의 주기마다
+        case WM_TIMER:         return RunFrameDuringSizeMove(app, wParam);
+        // focus 를 가진 window 에서 Alt 없이 키를 누를 때. 누르고 있으면 반복해서 온다
+        case WM_KEYDOWN:       return HandleKeyDown(app, wParam, lParam);
+        // window 가 파괴될 때 (닫기 버튼 → WM_CLOSE → DestroyWindow 다음)
+        case WM_DESTROY:       return QuitMessageLoop();
+        }
+        return std::nullopt;
+    }
+
+    LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+    {
+        if (msg == WM_NCCREATE)
+        {
+            AttachApp(hwnd, lParam);
+        }
+
+        if (App* app = GetApp(hwnd))
+        {
+            if (std::optional<LRESULT> result = HandleMessage(*app, msg, wParam, lParam))
+            {
+                return *result;
+            }
         }
         return DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+
+    int RunMessageLoop(App& app)
+    {
+        for (;;)
+        {
+            MSG msg = {};
+            while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                if (msg.message == WM_QUIT)
+                {
+                    return static_cast<int>(msg.wParam);
+                }
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+
+            if (IsIconic(app.hwnd))
+            {
+                WaitMessage();
+                continue;
+            }
+
+            RunFrame(app);
+        }
     }
 }
 
@@ -29,7 +245,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _I
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
     wc.lpszClassName = kWindowClassName;
 
     if (!RegisterClassExW(&wc))
@@ -39,22 +254,23 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _I
     }
 
     constexpr DWORD style = WS_OVERLAPPEDWINDOW;
-    RECT rect = { 0, 0, kClientWidth, kClientHeight };
+    RECT rect = { 0, 0, kInitialClientWidth, kInitialClientHeight };
     AdjustWindowRectEx(&rect, style, FALSE, 0);
 
+    App app;
     HWND hwnd = CreateWindowExW(
-        0, 
-        kWindowClassName, 
-        kWindowTitle, 
+        0,
+        kWindowClassName,
+        kWindowTitle,
         style,
-        CW_USEDEFAULT, 
-        CW_USEDEFAULT, 
-        rect.right - rect.left, 
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        rect.right - rect.left,
         rect.bottom - rect.top,
-        nullptr, 
-        nullptr, 
-        hInstance, 
-        nullptr);
+        nullptr,
+        nullptr,
+        hInstance,
+        &app);
 
     if (!hwnd)
     {
@@ -64,12 +280,5 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR, _I
 
     ShowWindow(hwnd, nCmdShow);
 
-    MSG msg = {};
-    while (GetMessageW(&msg, nullptr, 0, 0) > 0)
-    {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
-
-    return static_cast<int>(msg.wParam);
+    return RunMessageLoop(app);
 }

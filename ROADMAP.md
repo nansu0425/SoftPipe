@@ -41,9 +41,9 @@ D3D12 의 rasterization·shader stage 동작은 D3D11.3 Functional Specification
 
 ### M1 [B] 화면 출력 기반
 
-- [ ] `PeekMessageW` 기반 실시간 loop, `QueryPerformanceCounter` frame time, title 에 FPS·ms 표시
-- [ ] Presentation: pixel 배열을 `StretchDIBits` 로 표시. 내부 해상도와 client 크기 분리, resize 대응
-- [ ] 키 입력으로 현재 frame 을 PNG 로 dump (`stb_image_write`)
+- [x] `PeekMessageW` 기반 실시간 loop, `QueryPerformanceCounter` frame time, title 에 FPS·ms 표시
+- [x] Presentation: pixel 배열을 `StretchDIBits` 로 표시. 내부 해상도와 client 크기 분리, resize 대응
+- [x] 키 입력으로 현재 frame 을 PNG 로 dump (`stb_image_write`)
 
 완료 기준: CPU 로 채운 움직이는 test pattern 이 resize 후에도 깨지지 않고, dump 한 PNG 가 화면과 같다.
 
