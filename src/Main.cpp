@@ -176,12 +176,19 @@ namespace
     {
         switch (msg)
         {
+        // 무효화된 영역을 다시 그리기 전, 배경을 지우라고 할 때
         case WM_ERASEBKGND:    return SkipBackgroundErase();
+        // window 일부가 무효화되어 다시 그려야 할 때 (resize, 가려졌다 드러남 등)
         case WM_PAINT:         return RepaintLastFrame(app);
+        // 사용자가 창 테두리나 title bar 를 잡아 resize 나 이동을 시작할 때
         case WM_ENTERSIZEMOVE: return StartFramesDuringSizeMove(app);
+        // resize 나 이동을 마치고 마우스를 놓을 때
         case WM_EXITSIZEMOVE:  return StopFramesDuringSizeMove(app);
+        // SetTimer 로 건 timer 의 주기마다
         case WM_TIMER:         return RunFrameDuringSizeMove(app, wParam);
+        // focus 를 가진 window 에서 Alt 없이 키를 누를 때. 누르고 있으면 반복해서 온다
         case WM_KEYDOWN:       return HandleKeyDown(app, wParam, lParam);
+        // window 가 파괴될 때 (닫기 버튼 → WM_CLOSE → DestroyWindow 다음)
         case WM_DESTROY:       return QuitMessageLoop();
         }
         return std::nullopt;
